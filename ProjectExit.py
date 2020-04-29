@@ -25,13 +25,13 @@ import importlib.util
 import requests
 from pprint import pprint
 import mysql.connector
-import datetime
+from datetime import datetime
 import time
 
 #send to database and record if not exist
 def sendDatabase(plate):
     
-    x = datetime.datetime.now()
+    x = datetime.now()
     x = x.strftime("%Y-%m-%d %H:%M:%S")
     
     #check if plate is already in database
@@ -42,27 +42,96 @@ def sendDatabase(plate):
     check = mycursor.fetchone()
     # check if it is empty
     if not check:
-        print ('It does not exist')
-        sql = "INSERT INTO plates (license_plate, created_at, updated_at) VALUES (%s, %s, %s)"
-        val = (plate, x, x)
+        print ('Plate does not exist in the system.')
+        #It should exist in the database since the vehicle entered the parking and exiting.
+    else:
+        print("Plate in the database")
+        plate_id = check[0]
+        Exit(plate, x, plate_id)
+        
+        
+def Exit(plate, x, plate_id):
+    #get fee
+    fee = Calculate(plate_id, x)
+    status = "EXIT"
+    #get user balance and deduct
+    if (deductWallet(plate_id, fee)):
+        print (x)
+        sql = "UPDATE logs SET status=%s, exittime=%s, fee=%s WHERE plate_id=%s"
+        val = (status, x, fee, plate_id)
         mycursor.execute(sql, val)
         mydb.commit()
-        plate_id = mycursor.lastrowid
-        exit(plate, x, plate_id)
+        print("vehicle exit successful")
+        time.sleep(3)
     else:
-        print("In the database")
-        plate_id = check[0]
-        exit(plate, x, plate_id)
-        
-        
-def exit(plate, x, plate_id):
+        print("No out >:(")
     
-    sql = "INSERT INTO logs(entry, status, created_at, updated_at, plate_id, fee) VALUES (%s, %s, %s, %s, %s, %s)"
-    val = (x, "ENTER", x, x, plate_id, "0.00")
-    mycursor.execute(sql, val)
-    mydb.commit()
-    print("vehicle entry successful")
-    time.sleep(3)
+    
+    
+    
+def Calculate(plate_id, x):
+    mycursor.execute(
+        "SELECT * FROM logs WHERE plate_id = %s",
+        (plate_id,)
+    )
+    check = mycursor.fetchone()
+    if not check:
+        print ('Entry log does not exist in the system')
+        #It should exist in the database since the vehicle entered the parking and exiting.
+    else:
+        print("Log found in the database")
+        fee = 0
+        entrytime = check[1]
+        exittime = datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
+        diff = abs(exittime - entrytime)
+        day = diff.days
+        secs = diff.total_seconds()
+        hours = int(secs / 3600)
+        minutes = int(secs / 60) % 60
+        fee = fee + (day*24);
+        #calculate fee (hardcoded for RM1 for 1 Hours)
+        fee = fee + (hours*1)
+        if (minutes > 30):
+            fee = fee + 1
+        
+        return fee
+    
+def deductWallet(plate_id, fee):
+    mycursor.execute(
+        "SELECT * FROM plates WHERE license_plate = %s",
+        (plate,)
+    )
+    check = mycursor.fetchone()
+    # check if it is empty
+    if not check:
+        print ('Plate not exist in the system')
+        
+    else:
+        user_id = check[4]
+        mycursor.execute(
+        "SELECT * FROM users WHERE id = %s",
+        (user_id,)
+    )
+    usercheck = mycursor.fetchone()
+    if not usercheck:
+        print("User id not found in the system. the heck")
+        
+    else:
+        balance = usercheck[10]
+        if (fee > balance):
+            print("User balance not enough! Please add balance to your eWallet")
+            return False
+        else:
+            balance = balance - fee
+            sql = "UPDATE users SET balance = %s WHERE id = %s"
+            var = (balance, user_id)
+            mycursor.execute(sql, var)
+            mydb.commit()
+            return True
+            
+    
+    
+    
     
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
