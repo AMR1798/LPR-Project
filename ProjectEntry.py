@@ -22,12 +22,54 @@ import sys
 import time
 from threading import Thread
 import importlib.util
+import requests
+from pprint import pprint
+import mysql.connector
+import datetime
+import time
+
+#send to database and record if not exist
+def sendDatabase(plate):
+    
+    x = datetime.datetime.now()
+    x = x.strftime("%Y-%m-%d %H:%M:%S")
+    
+    #check if plate is already in database
+    mycursor.execute(
+        "SELECT * FROM plates WHERE license_plate = %s",
+        (plate,)
+    )
+    check = mycursor.fetchone()
+    # check if it is empty
+    if not check:
+        print ('It does not exist')
+        sql = "INSERT INTO plates (license_plate, created_at, updated_at) VALUES (%s, %s, %s)"
+        val = (plate, x, x)
+        mycursor.execute(sql, val)
+        mydb.commit()
+        plate_id = mycursor.lastrowid
+        entry(plate, x, plate_id)
+    else:
+        print("In the database")
+        plate_id = check[0]
+        entry(plate, x, plate_id)
+        
+        
+def entry(plate, x, plate_id):
+    
+    sql = "INSERT INTO logs(entry, status, created_at, updated_at, plate_id, fee) VALUES (%s, %s, %s, %s, %s, %s)"
+    val = (x, "ENTER", x, x, plate_id, "0.00")
+    mycursor.execute(sql, val)
+    mydb.commit()
+    print("vehicle entry successful")
+    time.sleep(3)
+    
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
 # Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
 class VideoStream:
     """Camera object that controls video streaming from the Picamera"""
-    def __init__(self,resolution=(640,480),rotation=90,framerate=30):
+    def __init__(self,resolution=(640,480),framerate=30):
         # Initialize the PiCamera and the camera image stream
         self.stream = cv2.VideoCapture(0)
         ret = self.stream.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
@@ -68,7 +110,7 @@ class VideoStream:
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
-                    required=True)
+                    required=False)
 parser.add_argument('--graph', help='Name of the .tflite file, if different than detect.tflite',
                     default='detect.tflite')
 parser.add_argument('--labels', help='Name of the labelmap file, if different than labelmap.txt',
@@ -82,7 +124,7 @@ parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed u
 
 args = parser.parse_args()
 
-MODEL_NAME = args.modeldir
+MODEL_NAME = "Sample_TFLite_model"
 GRAPH_NAME = args.graph
 LABELMAP_NAME = args.labels
 min_conf_threshold = float(args.threshold)
@@ -157,6 +199,14 @@ freq = cv2.getTickFrequency()
 # Initialize video stream
 videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
 time.sleep(1)
+mydb = mysql.connector.connect(
+      host="192.168.137.1",
+      user="parking",
+      passwd="",
+      database="laravel"
+    )
+mycursor = mydb.cursor()
+carcounter = 0
 
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 while True:
@@ -187,6 +237,9 @@ while True:
     scores = interpreter.get_tensor(output_details[2]['index'])[0] # Confidence of detected objects
     #num = interpreter.get_tensor(output_details[3]['index'])[0]  # Total number of detected objects (inaccurate and not needed)
 
+    #car counter
+    
+
     # Loop over all detections and draw detection box if confidence is above minimum threshold
     for i in range(len(scores)):
         if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
@@ -207,7 +260,30 @@ while True:
             label_ymin = max(ymin, labelSize[1] + 10) # Make sure not to draw label too close to top of window
             cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
             cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
-
+            
+            #Do something if found car / bus
+            if ((object_name == "car") or (object_name == "bus")):
+                carcounter = carcounter + 1
+                
+                print(carcounter)
+                if (carcounter > 5):
+                    img_name = "car.jpg"
+                    cv2.imwrite(img_name, frame)
+                    regions = ['my'] # Change to your country
+                    with open('car.jpg', 'rb') as fp:
+                        response = requests.post(
+                            'https://api.platerecognizer.com/v1/plate-reader/',
+                            data=dict(regions=regions),  # Optional
+                            files=dict(upload=fp),
+                            headers={'Authorization': 'Token af581437289c4e9f3d6ccc38e82878638254e91c'})
+                        data = response.json()
+                        plate = data['results'][0]['plate'].upper()
+                    sendDatabase(plate)
+                    carcounter = 0
+                
+                 
+            
+            
     # Draw framerate in corner of frame
     cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
 
@@ -226,3 +302,6 @@ while True:
 # Clean up
 cv2.destroyAllWindows()
 videostream.stop()
+
+
+
