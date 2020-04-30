@@ -118,13 +118,13 @@ parser.add_argument('--labels', help='Name of the labelmap file, if different th
 parser.add_argument('--threshold', help='Minimum confidence threshold for displaying detected objects',
                     default=0.5)
 parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If the webcam does not support the resolution entered, errors may occur.',
-                    default='1280x720')
+                    default='640x480')
 parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
                     action='store_true')
 
 args = parser.parse_args()
 
-MODEL_NAME = "Sample_TFLite_model"
+MODEL_NAME = "TFLite_model"
 GRAPH_NAME = args.graph
 LABELMAP_NAME = args.labels
 min_conf_threshold = float(args.threshold)
@@ -203,7 +203,8 @@ mydb = mysql.connector.connect(
       host="192.168.137.1",
       user="parking",
       passwd="",
-      database="laravel"
+      database="laravel",
+      autocommit=True
     )
 mycursor = mydb.cursor()
 carcounter = 0
