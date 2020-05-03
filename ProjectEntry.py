@@ -27,6 +27,9 @@ from pprint import pprint
 import mysql.connector
 import datetime
 import time
+import RPi.GPIO as GPIO
+from RpiMotorLib import RpiMotorLib
+
 
 #send to database and record if not exist
 def sendDatabase(plate):
@@ -61,9 +64,16 @@ def entry(plate, x, plate_id):
     val = (x, "ENTER", x, x, plate_id, "0.00")
     mycursor.execute(sql, val)
     mydb.commit()
+    gateControl()
     print("vehicle entry successful")
-    time.sleep(3)
     
+def gateControl():
+    print("Opening Gate")
+    gate.motor_run(GpioPins , .001, 128, False, False, "half", .05)
+    time.sleep(3)
+    print("Closing Gate")
+    gate.motor_run(GpioPins , .001, 128, True, False, "half", .05)
+    time.sleep(2)
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
 # Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
@@ -195,6 +205,10 @@ input_std = 127.5
 # Initialize frame rate calculation
 frame_rate_calc = 1
 freq = cv2.getTickFrequency()
+
+#GPIO Pins for stepper motor (Simulate boom gate)
+GpioPins = [17,18,27,22]
+gate = RpiMotorLib.BYJMotor("Motor", "28BYJ")
 
 # Initialize video stream
 videostream = VideoStream(resolution=(imW,imH),framerate=30).start()

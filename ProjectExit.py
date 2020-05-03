@@ -27,7 +27,8 @@ from pprint import pprint
 import mysql.connector
 from datetime import datetime
 import time
-
+import RPi.GPIO as GPIO
+from RpiMotorLib import RpiMotorLib
 #send to database and record if not exist
 def sendDatabase(plate):
     
@@ -59,12 +60,12 @@ def Exit(plate, x, plate_id):
     #get user balance and deduct
     if (deductWallet(plate_id, fee)):
         print (x)
-        sql = "UPDATE logs SET status=%s, exittime=%s, fee=%s WHERE plate_id=%s"
+        sql = "UPDATE logs SET status=%s, exittime=%s, fee=%s WHERE plate_id=%s AND status='ENTER'"
         val = (status, x, fee, plate_id)
         mycursor.execute(sql, val)
         mydb.commit()
         print("vehicle exit successful")
-        time.sleep(3)
+        gateControl()
     else:
         print("No out >:(")
     
@@ -73,7 +74,7 @@ def Exit(plate, x, plate_id):
     
 def Calculate(plate_id, x):
     mycursor.execute(
-        "SELECT * FROM logs WHERE plate_id = %s",
+        "SELECT * FROM logs WHERE plate_id = %s AND status='ENTER'",
         (plate_id,)
     )
     check = mycursor.fetchone()
@@ -86,10 +87,15 @@ def Calculate(plate_id, x):
         entrytime = check[1]
         exittime = datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
         diff = abs(exittime - entrytime)
-        secs = diff.total_seconds()
-        hours = int(secs / 3600)
-        minutes = int(secs / 60) % 60
+        days = diff.days
+        secs = diff.seconds
+        hours = secs // 3600
+        minutes = (secs // 60 ) % 60
+        print(days)
+        print(hours)
+        print(minutes)
         #calculate fee (hardcoded for RM1 for 1 Hours)
+        fee = fee + (days*24*1)
         fee = fee + (hours*1)
         if (minutes > 30):
             fee = fee + 1
@@ -136,7 +142,13 @@ def deductWallet(plate_id, fee):
             return True
             
     
-    
+def gateControl():
+    print("Opening Gate")
+    gate.motor_run(GpioPins , .001, 128, False, False, "half", .05)
+    time.sleep(3)
+    print("Closing Gate")
+    gate.motor_run(GpioPins , .001, 128, True, False, "half", .05)
+    time.sleep(2)
     
     
 
@@ -270,6 +282,10 @@ input_std = 127.5
 # Initialize frame rate calculation
 frame_rate_calc = 1
 freq = cv2.getTickFrequency()
+
+#GPIO Pins for stepper motor (Simulate boom gate)
+GpioPins = [17,18,27,22]
+gate = RpiMotorLib.BYJMotor("Motor", "28BYJ")
 
 # Initialize video stream
 videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
