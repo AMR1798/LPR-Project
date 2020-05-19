@@ -1,18 +1,3 @@
-######## Webcam Object Detection Using Tensorflow-trained Classifier #########
-#
-# Author: Evan Juras
-# Date: 10/27/19
-# Description: 
-# This program uses a TensorFlow Lite model to perform object detection on a live webcam
-# feed. It draws boxes and scores around the objects of interest in each frame from the
-# webcam. To improve FPS, the webcam object runs in a separate thread from the main program.
-# This script will work with either a Picamera or regular USB webcam.
-#
-# This code is based off the TensorFlow Lite image classification example at:
-# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/examples/python/label_image.py
-#
-# I added my own method of drawing boxes and labels using OpenCV.
-
 # Import packages
 import os
 import argparse
@@ -29,6 +14,7 @@ from datetime import datetime
 import time
 import RPi.GPIO as GPIO
 from RpiMotorLib import RpiMotorLib
+import tkinter as tk
 #send to database and record if not exist
 def sendDatabase(plate):
     
@@ -48,6 +34,7 @@ def sendDatabase(plate):
     else:
         print("Plate in the database")
         plate_id = check[0]
+        print(plate)
         Exit(plate, x, plate_id)
         
         
@@ -60,15 +47,17 @@ def Exit(plate, x, plate_id):
     #get user balance and deduct
     if (deductWallet(plate_id, fee)):
         print (x)
-        sql = "UPDATE logs SET status=%s, exittime=%s, fee=%s WHERE plate_id=%s AND status='ENTER'"
-        val = (status, x, fee, plate_id)
+        sql = "UPDATE logs SET status=%s, exittime=%s, fee=%s, gate=%s WHERE plate_id=%s AND status='ENTER'"
+        val = (status, x, fee, gatename, plate_id)
         mycursor.execute(sql, val)
         mydb.commit()
         print("vehicle exit successful")
         gateControl()
     else:
         print("No out >:(")
-    
+        time.sleep(5)
+        
+        
     
     
     
@@ -91,9 +80,6 @@ def Calculate(plate_id, x):
         secs = diff.seconds
         hours = secs // 3600
         minutes = (secs // 60 ) % 60
-        print(days)
-        print(hours)
-        print(minutes)
         #calculate fee (hardcoded for RM1 for 1 Hours)
         fee = fee + (days*24*1)
         fee = fee + (hours*1)
@@ -119,7 +105,7 @@ def deductWallet(plate_id, fee):
     )
     usercheck = mycursor.fetchone()
     if not usercheck:
-        print("User id not found in the system. the heck")
+        print("Plate is not registered to any account")
         
     else:
         balance = usercheck[10]
@@ -194,30 +180,53 @@ class VideoStream:
 	# Indicate that the camera and thread should be stopped
         self.stopped = True
 
-# Define and parse input arguments
-parser = argparse.ArgumentParser()
-parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
-                    required=False)
-parser.add_argument('--graph', help='Name of the .tflite file, if different than detect.tflite',
-                    default='detect.tflite')
-parser.add_argument('--labels', help='Name of the labelmap file, if different than labelmap.txt',
-                    default='labelmap.txt')
-parser.add_argument('--threshold', help='Minimum confidence threshold for displaying detected objects',
-                    default=0.5)
-parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If the webcam does not support the resolution entered, errors may occur.',
-                    default='640x480')
-parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
-                    action='store_true')
+#Get input from user for gate name
+root= tk.Tk()
 
-args = parser.parse_args()
+# Gets the requested values of the height and widht.
+windowWidth = root.winfo_reqwidth()
+windowHeight = root.winfo_reqheight()
+ 
+# Gets both half the screen width/height and window width/height
+positionRight = int(root.winfo_screenwidth()/2 - windowWidth/2)
+positionDown = int(root.winfo_screenheight()/2 - windowHeight/2)
+ 
+# Positions the window in the center of the page.
+root.geometry("+{}+{}".format(positionRight, positionDown))
+gatename = ""
+canvas1 = tk.Canvas(root, width = 400, height = 300)
+canvas1.pack()
+label1 = tk.Label(root, text='Specify Gate Name')
+label1.config(font=('helvetica', 14))
+canvas1.create_window(200, 25, window=label1)
+entry1 = tk.Entry (root) 
+canvas1.create_window(200, 140, window=entry1)
 
+def getName():  
+    global gatename
+    gatename = entry1.get()
+    root.destroy()
+    
+
+button1 = tk.Button(text='Set Gate Name', command=getName)
+canvas1.create_window(200, 180, window=button1)
+
+root.mainloop()
+
+#tensorflow settings
 MODEL_NAME = "TFLite_model"
-GRAPH_NAME = args.graph
-LABELMAP_NAME = args.labels
-min_conf_threshold = float(args.threshold)
-resW, resH = args.resolution.split('x')
-imW, imH = int(resW), int(resH)
-use_TPU = args.edgetpu
+GRAPH_NAME = "detect.tflite"
+LABELMAP_NAME = "labelmap.txt"
+min_conf_threshold = float(0.5)
+imW, imH = int(640), int(480)
+
+#read db.ini for database connection settings
+f = open("db.ini", "r")
+x, host = f.readline().split('=')
+x, username = f.readline().split('=')
+x, password = f.readline().split('=')
+x, database = f.readline().split('=')
+password = password.rstrip()
 
 # Import TensorFlow libraries
 # If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
@@ -225,18 +234,10 @@ use_TPU = args.edgetpu
 pkg = importlib.util.find_spec('tflite_runtime')
 if pkg:
     from tflite_runtime.interpreter import Interpreter
-    if use_TPU:
-        from tflite_runtime.interpreter import load_delegate
 else:
     from tensorflow.lite.python.interpreter import Interpreter
-    if use_TPU:
-        from tensorflow.lite.python.interpreter import load_delegate
 
-# If using Edge TPU, assign filename for Edge TPU model
-if use_TPU:
-    # If user has specified the name of the .tflite file, use that name, otherwise use default 'edgetpu.tflite'
-    if (GRAPH_NAME == 'detect.tflite'):
-        GRAPH_NAME = 'edgetpu.tflite'       
+   
 
 # Get path to current working directory
 CWD_PATH = os.getcwd()
@@ -258,13 +259,8 @@ if labels[0] == '???':
     del(labels[0])
 
 # Load the Tensorflow Lite model.
-# If using Edge TPU, use special load_delegate argument
-if use_TPU:
-    interpreter = Interpreter(model_path=PATH_TO_CKPT,
-                              experimental_delegates=[load_delegate('libedgetpu.so.1.0')])
-    print(PATH_TO_CKPT)
-else:
-    interpreter = Interpreter(model_path=PATH_TO_CKPT)
+
+interpreter = Interpreter(model_path=PATH_TO_CKPT)
 
 interpreter.allocate_tensors()
 
@@ -290,108 +286,111 @@ gate = RpiMotorLib.BYJMotor("Motor", "28BYJ")
 # Initialize video stream
 videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
 time.sleep(1)
-print("Connecting to the database")
-mydb = mysql.connector.connect(
-      host="192.168.137.1",
-      user="parking",
-      passwd="",
-      database="laravel",
-      autocommit=True
-    )
-mycursor = mydb.cursor()
-print("Connection successful")
+detectstart = True
+try:
+    print("Connecting to the database")
+    config = {
+          'user': username,
+          'password': password,
+          'host': host,
+          'database': database,
+          'raise_on_warnings': True,
+          'autocommit' : True,
+        }
+    mydb = mysql.connector.connect(**config)
+    print("Connection successful")
+    mycursor = mydb.cursor()
+except:
+    print("Failed to connect to database!")
+    print("Please check db.ini file")
+    detectstart = False
 carcounter = 0
 
-#for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
-while True:
+if (detectstart == True):
+    while True:
 
-    # Start timer (for calculating frame rate)
-    t1 = cv2.getTickCount()
+        # Start timer (for calculating frame rate)
+        t1 = cv2.getTickCount()
 
-    # Grab frame from video stream
-    frame1 = videostream.read()
+        # Grab frame from video stream
+        frame1 = videostream.read()
 
-    # Acquire frame and resize to expected shape [1xHxWx3]
-    frame =  cv2.flip(frame1.copy(),-1)
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    frame_resized = cv2.resize(frame_rgb, (width, height))
-    input_data = np.expand_dims(frame_resized, axis=0)
+        # Acquire frame and resize to expected shape [1xHxWx3]
+        frame =  cv2.flip(frame1.copy(),-1)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_resized = cv2.resize(frame_rgb, (width, height))
+        input_data = np.expand_dims(frame_resized, axis=0)
 
-    # Normalize pixel values if using a floating model (i.e. if model is non-quantized)
-    if floating_model:
-        input_data = (np.float32(input_data) - input_mean) / input_std
+        # Normalize pixel values if using a floating model (i.e. if model is non-quantized)
+        if floating_model:
+            input_data = (np.float32(input_data) - input_mean) / input_std
 
-    # Perform the actual detection by running the model with the image as input
-    interpreter.set_tensor(input_details[0]['index'],input_data)
-    interpreter.invoke()
+        # Perform the actual detection by running the model with the image as input
+        interpreter.set_tensor(input_details[0]['index'],input_data)
+        interpreter.invoke()
 
-    # Retrieve detection results
-    boxes = interpreter.get_tensor(output_details[0]['index'])[0] # Bounding box coordinates of detected objects
-    classes = interpreter.get_tensor(output_details[1]['index'])[0] # Class index of detected objects
-    scores = interpreter.get_tensor(output_details[2]['index'])[0] # Confidence of detected objects
-    #num = interpreter.get_tensor(output_details[3]['index'])[0]  # Total number of detected objects (inaccurate and not needed)
+        # Retrieve detection results
+        boxes = interpreter.get_tensor(output_details[0]['index'])[0] # Bounding box coordinates of detected objects
+        classes = interpreter.get_tensor(output_details[1]['index'])[0] # Class index of detected objects
+        scores = interpreter.get_tensor(output_details[2]['index'])[0] # Confidence of detected objects
+        #num = interpreter.get_tensor(output_details[3]['index'])[0]  # Total number of detected objects (inaccurate and not needed)
 
-    #car counter
-    
+        #car counter
+        
 
-    # Loop over all detections and draw detection box if confidence is above minimum threshold
-    for i in range(len(scores)):
-        if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
+        # Loop over all detections and draw detection box if confidence is above minimum threshold
+        for i in range(len(scores)):
+            if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
+                object_name = labels[int(classes[i])] # Look up object name from "labels" array using class index
+                if (object_name == 'car'):
+                    # Get bounding box coordinates and draw box
+                    # Interpreter can return coordinates that are outside of image dimensions, need to force them to be within image using max() and min()
+                    ymin = int(max(1,(boxes[i][0] * imH)))
+                    xmin = int(max(1,(boxes[i][1] * imW)))
+                    ymax = int(min(imH,(boxes[i][2] * imH)))
+                    xmax = int(min(imW,(boxes[i][3] * imW)))
+                    
+                    cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
 
-            # Get bounding box coordinates and draw box
-            # Interpreter can return coordinates that are outside of image dimensions, need to force them to be within image using max() and min()
-            ymin = int(max(1,(boxes[i][0] * imH)))
-            xmin = int(max(1,(boxes[i][1] * imW)))
-            ymax = int(min(imH,(boxes[i][2] * imH)))
-            xmax = int(min(imW,(boxes[i][3] * imW)))
-            
-            cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
-
-            # Draw label
-            object_name = labels[int(classes[i])] # Look up object name from "labels" array using class index
-            label = '%s: %d%%' % (object_name, int(scores[i]*100)) # Example: 'person: 72%'
-            labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2) # Get font size
-            label_ymin = max(ymin, labelSize[1] + 10) # Make sure not to draw label too close to top of window
-            cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
-            cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
-            
-            #Do something if found car / bus
-            if ((object_name == "car") or (object_name == "bus")):
-                carcounter = carcounter + 1
+                    
+                    
+                    #Do something if found car / bus
+                    if ((object_name == "car") or (object_name == "bus")):
+                        carcounter = carcounter + 1
+                        
+                        print(carcounter)
+                        if (carcounter > 5):
+                            img_name = "car.jpg"
+                            cv2.imwrite(img_name, frame)
+                            regions = ['my'] # Change to your country
+                            with open('car.jpg', 'rb') as fp:
+                                response = requests.post(
+                                    'https://api.platerecognizer.com/v1/plate-reader/',
+                                    data=dict(regions=regions),  # Optional
+                                    files=dict(upload=fp),
+                                    headers={'Authorization': 'Token af581437289c4e9f3d6ccc38e82878638254e91c'})
+                                data = response.json()
+                                plate = data['results'][0]['plate'].upper()
+                            sendDatabase(plate)
+                            carcounter = 0
+                    
+                     
                 
-                print(carcounter)
-                if (carcounter > 5):
-                    img_name = "car.jpg"
-                    cv2.imwrite(img_name, frame)
-                    regions = ['my'] # Change to your country
-                    with open('car.jpg', 'rb') as fp:
-                        response = requests.post(
-                            'https://api.platerecognizer.com/v1/plate-reader/',
-                            data=dict(regions=regions),  # Optional
-                            files=dict(upload=fp),
-                            headers={'Authorization': 'Token af581437289c4e9f3d6ccc38e82878638254e91c'})
-                        data = response.json()
-                        plate = data['results'][0]['plate'].upper()
-                    sendDatabase(plate)
-                    carcounter = 0
                 
-                 
-            
-            
-    # Draw framerate in corner of frame
-    cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
+        # Draw framerate in corner of frame
+        cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
 
-    # All the results have been drawn on the frame, so it's time to display it.
-    cv2.imshow('Object detector', frame)
+        # All the results have been drawn on the frame, so it's time to display it.
+        cv2.imshow('Object detector', frame)
 
-    # Calculate framerate
-    t2 = cv2.getTickCount()
-    time1 = (t2-t1)/freq
-    frame_rate_calc= 1/time1
+        # Calculate framerate
+        t2 = cv2.getTickCount()
+        time1 = (t2-t1)/freq
+        frame_rate_calc= 1/time1
 
-    # Press 'q' to quit
-    if cv2.waitKey(1) == ord('q'):
-        break
+        # Press 'q' to quit
+        if cv2.waitKey(1) == ord('q'):
+            break
 
 # Clean up
 cv2.destroyAllWindows()

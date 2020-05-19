@@ -64,6 +64,8 @@ class VideoStream:
     def stop(self):
 	# Indicate that the camera and thread should be stopped
         self.stopped = True
+        
+        
 
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
@@ -155,7 +157,7 @@ frame_rate_calc = 1
 freq = cv2.getTickFrequency()
 
 # Initialize video stream
-videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
+videostream = VideoStream(resolution=(imW,imH),framerate=1).start()
 time.sleep(1)
 
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
