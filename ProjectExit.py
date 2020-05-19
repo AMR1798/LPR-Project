@@ -79,7 +79,12 @@ def Calculate(plate_id, x):
     else:
         print("Log found in the database")
         fee = 0
+        mycursor.execute(
+        "SELECT * FROM prices WHERE id = 1"
+        )
+        price = mycursor.fetchone()
         entrytime = check[1]
+        
         y = entrytime.strftime("%Y-%m-%d %H:%M:%S")
         exittime = datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
         app.setTime(y,x)
@@ -88,11 +93,30 @@ def Calculate(plate_id, x):
         secs = diff.seconds
         hours = secs // 3600
         minutes = (secs // 60 ) % 60
-        #calculate fee (hardcoded for RM1 for 1 Hours)
-        fee = fee + (days*24*1)
-        fee = fee + (hours*1)
-        if (minutes > 30):
-            fee = fee + 1
+        print(price[1])
+        #check if more than 15 minutes
+        if(minutes > 15):
+            fee = fee + price[1]
+            print("more than 15")
+            print(fee)
+        #add subsequent hours if more than 1 hour
+        if(hours > 0 and hours < 2):
+            fee = fee + (hours*price[2])
+            print("more than one hour")
+            print(fee)
+            
+        if(hours > 1):
+            hours = hours - 1
+            fee = fee + (hours*price[2])
+            print("more than one hour")
+            print(fee)
+            
+        if (fee > price[3]):
+            fee = price[3]
+            print("fee more than max hour")
+            print(fee)
+        #add days
+        fee = fee + (days * price[3])
         return fee
     
 def deductWallet(plate_id, fee):
@@ -113,6 +137,7 @@ def deductWallet(plate_id, fee):
     )
     usercheck = mycursor.fetchone()
     if not usercheck:
+        app.setMessage("Plate is not registered to any account");
         print("Plate is not registered to any account")
         
     else:
@@ -120,11 +145,11 @@ def deductWallet(plate_id, fee):
         if (fee > balance):
             print("Balance : ")
             print(balance)
+            app.setMessage("User balance not enough! Please add balance to your eWallet")
             print("User balance not enough! Please add balance to your eWallet")
             usercheck = None
             return False
         else:
-            
             balance = balance - fee
             print("New Balance : ")
             print(balance)
@@ -276,7 +301,7 @@ class App(threading.Thread):
     def setGate(self, gate):
         self.gateLabel2['text'] = gate
     def setFee(self, fee):
-        self.feeLabel2['text'] = fee
+        self.feeLabel2['text'] = 'RM '+ str(fee)
     def setMessage(self, message):
         self.messageLabel['text'] = message
 
