@@ -48,7 +48,8 @@ def sendDatabase(plate):
         
         
 def entry(plate, x, plate_id):
-    
+    app.setTime(x)
+    app.setGate(gatename)
     sql = "INSERT INTO logs(entry, status, created_at, updated_at, plate_id, fee, gate) VALUES (%s, %s, %s, %s, %s, %s, %s)"
     val = (x, "ENTER", x, x, plate_id, "0.00", gatename)
     mycursor.execute(sql, val)
@@ -58,11 +59,17 @@ def entry(plate, x, plate_id):
     
 def gateControl():
     print("Opening Gate")
+    app.setMessage("Opening Gate")
     gate.motor_run(GpioPins , .001, 128, False, False, "half", .05)
     time.sleep(3)
+    app.setMessage("Closing Gate")
     print("Closing Gate")
     gate.motor_run(GpioPins , .001, 128, True, False, "half", .05)
     time.sleep(2)
+    app.setPlate("")
+    app.setTime("")
+    app.setGate("")
+    app.setMessage("")
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
 # Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
@@ -121,30 +128,63 @@ class App(threading.Thread):
         self.root = tk.Tk()
         self.root.protocol("WM_DELETE_WINDOW", self.callback)
         self.root.title("Parkey")
-        self.canvas1 = tk.Canvas(self.root, width = 800, height = 600)
+        self.canvas1 = tk.Canvas(self.root, width = 800, height = 600, bg='white')
         self.canvas1.pack()
+        #load parkey logo
         url="https://i.imgur.com/GZKVNMe.png"
         image_byt = urlopen(url).read()
         image_b64 = base64.encodestring(image_byt)
         photo = tk.PhotoImage(data=image_b64)
         self.canvas1.create_image(250, 10, image=photo, anchor='nw')
-        self.label2 = tk.Label(self.root, text='Status: Connecting')
-        self.label2.config(font=('helvetica', 15))
-        self.canvas1.create_window(400, 140, window=self.label2)
-        self.label3 = tk.Label(self.root, text='Plate:')
-        self.label3.config(font=('helvetica', 15))
-        self.canvas1.create_window(400, 200, window=self.label3)
+        #connection status label
+        self.connectLabel = tk.Label(self.root, text='Connecting', bg='white', fg="green")
+        self.connectLabel.config(font=('helvetica', 15))
+        self.canvas1.create_window(700, 580, window=self.connectLabel)
+        #plate label
+        self.plateLabel1 = tk.Label(self.root, text='Plate:', bg='white')
+        self.plateLabel1.config(font=('helvetica', 50))
+        self.canvas1.create_window(200, 200, window=self.plateLabel1)
+        #plate number label
+        self.plateLabel2 = tk.Label(self.root, text='', bg='white')
+        self.plateLabel2.config(font=('helvetica', 45))
+        self.canvas1.create_window(300, 165, window=self.plateLabel2, anchor='nw')
+        #time label
+        self.timeLabel1 = tk.Label(self.root, text='Time:', bg='white')
+        self.timeLabel1.config(font=('helvetica', 30))
+        self.canvas1.create_window(230, 300, window=self.timeLabel1)
+        #time label show time
+        self.timeLabel2 = tk.Label(self.root, text='', bg='white')
+        self.timeLabel2.config(font=('helvetica', 30))
+        self.canvas1.create_window(300, 275, window=self.timeLabel2, anchor='nw')
+        #gate label
+        self.gateLabel1 = tk.Label(self.root, text='Gate:', bg='white')
+        self.gateLabel1.config(font=('helvetica', 30))
+        self.canvas1.create_window(230, 380, window=self.gateLabel1)
+        #gate label
+        self.gateLabel2 = tk.Label(self.root, text='', bg='white')
+        self.gateLabel2.config(font=('helvetica', 30))
+        self.canvas1.create_window(300, 360, window=self.gateLabel2, anchor='nw')
+        #message label
+        self.messageLabel = tk.Label(self.root, text='', bg='white')
+        self.messageLabel.config(font=('helvetica', 30))
+        self.canvas1.create_window(400, 500, window=self.messageLabel, anchor='center')
         self.root.mainloop()
     def update(self):
-        self.label2['text'] = "Status: Connected"   
+        self.connectLabel['text'] = "Connected"   
     def setPlate(self, plate):
-        self.label3['text'] = "Plate: " + plate
+        self.plateLabel2['text'] = plate
+    def setTime(self, time):
+        self.timeLabel2['text'] = time
+    def setGate(self, gate):
+        self.gateLabel2['text'] = gate
+    def setMessage(self, message):
+        self.messageLabel['text'] = message
 
 
 
 #Get input from user for gate name
 root= tk.Tk()
-
+root.title("Parkey: Initialization")
 
 # Gets the requested values of the height and widht.
 windowWidth = root.winfo_reqwidth()
@@ -324,8 +364,9 @@ if(detectstart == True):
                     if ((object_name == "car") or (object_name == "bus")):
                         carcounter = carcounter + 1
                         
-                        print(carcounter)
+                        app.setMessage("Car Detected")
                         if (carcounter > 5):
+                            app.setMessage("Getting License Plate")
                             img_name = "car.jpg"
                             cv2.imwrite(img_name, frame)
                             regions = ['my'] # Change to your country
@@ -337,6 +378,7 @@ if(detectstart == True):
                                     headers={'Authorization': 'Token af581437289c4e9f3d6ccc38e82878638254e91c'})
                                 data = response.json()
                                 plate = data['results'][0]['plate'].upper()
+                                app.setMessage("License Plate Found")
                                 app.setPlate(plate)
                             sendDatabase(plate)
                             carcounter = 0
