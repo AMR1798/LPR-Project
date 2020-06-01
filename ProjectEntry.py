@@ -48,14 +48,27 @@ def sendDatabase(plate):
         
         
 def entry(plate, x, plate_id):
-    app.setTime(x)
-    app.setGate(gatename)
-    sql = "INSERT INTO logs(entry, status, created_at, updated_at, plate_id, fee, gate) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-    val = (x, "ENTER", x, x, plate_id, "0.00", gatename)
-    mycursor.execute(sql, val)
-    mydb.commit()
-    gateControl()
-    print("vehicle entry successful")
+    #check if plate is already parked in the system
+    mycursor.execute(
+        "SELECT * FROM logs WHERE plate_id = %s AND status='ENTER'",
+        (plate_id,)
+    )
+    check = mycursor.fetchone()
+    if not check:
+        #if does not exist
+        print ('Entry log does not exist in the system')
+        app.setTime(x)
+        app.setGate(gatename)
+        sql = "INSERT INTO logs(entry, status, created_at, updated_at, plate_id, fee, gate) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+        val = (x, "ENTER", x, x, plate_id, "0.00", gatename)
+        mycursor.execute(sql, val)
+        mydb.commit()
+        gateControl()
+        print("vehicle entry successful")
+    else:
+        print("Vehicle already parked in the system")
+        app.setMessage("Vehicle already parked in the system")
+        time.sleep(5)
     
 def gateControl():
     print("Opening Gate")
@@ -303,7 +316,8 @@ try:
     mydb = mysql.connector.connect(**config)
     print("Connection successful")
     mycursor = mydb.cursor()
-except:
+except Exception as e:
+    print(e)
     print("Failed to connect to database!")
     print("Please check db.ini file")
     detectstart = False
@@ -312,6 +326,7 @@ carcounter = 0
 if(detectstart == True):
     app.update()
     while True:
+        send = True
         # Start timer (for calculating frame rate)
         t1 = cv2.getTickCount()
 
@@ -377,10 +392,17 @@ if(detectstart == True):
                                     files=dict(upload=fp),
                                     headers={'Authorization': 'Token af581437289c4e9f3d6ccc38e82878638254e91c'})
                                 data = response.json()
-                                plate = data['results'][0]['plate'].upper()
-                                app.setMessage("License Plate Found")
-                                app.setPlate(plate)
-                            sendDatabase(plate)
+                                try:
+                                    plate = data['results'][0]['plate'].upper()
+                                    app.setMessage("License Plate Found")
+                                except:
+                                    app.setMessage("License Plate not found")
+                                    print("License plate not found")
+                                    time.sleep(3)
+                                    send = False
+                                if(send == True):
+                                    app.setPlate(plate)
+                                    sendDatabase(plate)
                             carcounter = 0
                     
                      

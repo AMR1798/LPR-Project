@@ -45,23 +45,34 @@ def sendDatabase(plate):
 def Exit(plate, x, plate_id):
     #get fee
     fee = Calculate(plate_id, x)
-    print ("Fee: ")
-    print(fee)
-    app.setFee(fee)
-    app.setGate(gatename)
-    status = "EXIT"
-    #get user balance and deduct
-    if (deductWallet(plate_id, fee)):
-        print (x)
-        sql = "UPDATE logs SET status=%s, exittime=%s, fee=%s, gate=%s WHERE plate_id=%s AND status='ENTER'"
-        val = (status, x, fee, gatename, plate_id)
-        mycursor.execute(sql, val)
-        mydb.commit()
-        print("vehicle exit successful")
-        gateControl()
+    if (fee > -1):
+        print ("Fee: ")
+        print(fee)
+        app.setFee(fee)
+        app.setGate(gatename)
+        status = "EXIT"
+        #get user balance and deduct
+        if (deductWallet(plate_id, fee)):
+            print (x)
+            sql = "UPDATE logs SET status=%s, exittime=%s, fee=%s, gate=%s WHERE plate_id=%s AND status='ENTER'"
+            val = (status, x, fee, gatename, plate_id)
+            mycursor.execute(sql, val)
+            mydb.commit()
+            print("vehicle exit successful")
+            gateControl()
+        else:
+            print("No out >:(")
+            time.sleep(5)
     else:
-        print("No out >:(")
+        print("Parking log not found in the system")
+        app.setMessage("Plate log not found in the system")
         time.sleep(5)
+        app.setPlate("")
+        app.setTime("","")
+        app.setFee("")
+        app.setGate("")
+        app.setMessage("")
+            
         
         
     
@@ -76,6 +87,7 @@ def Calculate(plate_id, x):
     if not check:
         print ('Entry log does not exist in the system')
         #It should exist in the database since the vehicle entered the parking and exiting.
+        return -1
     else:
         print("Log found in the database")
         fee = 0
@@ -139,6 +151,13 @@ def deductWallet(plate_id, fee):
     if not usercheck:
         app.setMessage("Plate is not registered to any account");
         print("Plate is not registered to any account")
+        time.sleep(5)
+        app.setPlate("")
+        app.setTime("","")
+        app.setFee("")
+        app.setGate("")
+        app.setMessage("")
+        
         
     else:
         balance = usercheck[10]
@@ -148,6 +167,12 @@ def deductWallet(plate_id, fee):
             app.setMessage("User balance not enough! Please add balance to your eWallet")
             print("User balance not enough! Please add balance to your eWallet")
             usercheck = None
+            time.sleep(5)
+            app.setPlate("")
+            app.setTime("","")
+            app.setFee("")
+            app.setGate("")
+            app.setMessage("")
             return False
         else:
             balance = balance - fee
@@ -437,7 +462,7 @@ carcounter = 0
 if (detectstart == True):
     app.update()
     while True:
-
+        send = True
         # Start timer (for calculating frame rate)
         t1 = cv2.getTickCount()
 
@@ -500,10 +525,16 @@ if (detectstart == True):
                                     files=dict(upload=fp),
                                     headers={'Authorization': 'Token af581437289c4e9f3d6ccc38e82878638254e91c'})
                                 data = response.json()
-                                plate = data['results'][0]['plate'].upper()
-                                app.setMessage("License Plate Found")
-                                app.setPlate(plate)
-                            sendDatabase(plate)
+                                try:
+                                    plate = data['results'][0]['plate'].upper()
+                                    app.setMessage("License Plate Found")
+                                    app.setPlate(plate)
+                                except:
+                                    send = False
+                                    app.setMessage("License Plate Not Found")
+                                    time.sleep(5)
+                            if(send == True):
+                                sendDatabase(plate)
                             carcounter = 0
                     
                      
