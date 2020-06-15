@@ -51,11 +51,12 @@ def Exit(plate, x, plate_id):
         app.setFee(fee)
         app.setGate(gatename)
         status = "EXIT"
+        user_id = deductWallet(plate_id, fee)
         #get user balance and deduct
-        if (deductWallet(plate_id, fee)):
+        if (user_id  > 0):
             print (x)
-            sql = "UPDATE logs SET status=%s, exittime=%s, fee=%s, gate=%s WHERE plate_id=%s AND status='ENTER'"
-            val = (status, x, fee, gatename, plate_id)
+            sql = "UPDATE logs SET status=%s, exittime=%s, fee=%s, gate=%s, user_id=%s WHERE plate_id=%s AND status='ENTER'"
+            val = (status, x, fee, gatename,user_id, plate_id)
             mycursor.execute(sql, val)
             mydb.commit()
             print("vehicle exit successful")
@@ -106,29 +107,32 @@ def Calculate(plate_id, x):
         hours = secs // 3600
         minutes = (secs // 60 ) % 60
         print(price[1])
-        #check if more than 15 minutes
-        if(minutes > 15):
-            fee = fee + price[1]
-            print("more than 15")
-            print(fee)
-        #add subsequent hours if more than 1 hour
-        if(hours > 0 and hours < 2):
-            fee = fee + (hours*price[2])
-            print("more than one hour")
-            print(fee)
-            
-        if(hours > 1):
-            hours = hours - 1
-            fee = fee + (hours*price[2])
-            print("more than one hour")
-            print(fee)
+        #first day
+        if (days == 0):
+            if ((minutes > 15 and hours == 0) or hours == 1):
+                fee = fee + price[1]
+                print("first")
+                print(fee)
+            elif(hours > 1):
+                fee = fee + (price[1])
+                hours = hours - 1
+                fee = fee + (price[2]*hours)
+                if (minutes > 15):
+                    fee = fee + price[2]
+                print("second")
+                print(fee)
+        else:
+            if(minutes > 15):
+                fee = fee + (price[2])
+                
+            if(hours > 0):
+                fee = fee + (price[2]*hours)
             
         if (fee > price[3]):
             fee = price[3]
-            print("fee more than max hour")
-            print(fee)
-        #add days
-        fee = fee + (days * price[3])
+            
+        fee = fee + (days*price[3])
+              
         return fee
     
 def deductWallet(plate_id, fee):
@@ -173,8 +177,9 @@ def deductWallet(plate_id, fee):
             app.setFee("")
             app.setGate("")
             app.setMessage("")
-            return False
+            return 0
         else:
+            user_id = usercheck[0]
             balance = balance - fee
             print("New Balance : ")
             print(balance)
@@ -183,7 +188,7 @@ def deductWallet(plate_id, fee):
             mycursor.execute(sql, var)
             mydb.commit()
             usercheck = None
-            return True
+            return user_id
             
     
 def gateControl():

@@ -48,6 +48,7 @@ def sendDatabase(plate):
         
         
 def entry(plate, x, plate_id):
+    app.setPlate(plate)
     #check if plate is already parked in the system
     mycursor.execute(
         "SELECT * FROM logs WHERE plate_id = %s AND status='ENTER'",
@@ -69,6 +70,8 @@ def entry(plate, x, plate_id):
         print("Vehicle already parked in the system")
         app.setMessage("Vehicle already parked in the system")
         time.sleep(5)
+        app.setMessage("")
+        app.setPlate(plate)
     
 def gateControl():
     print("Opening Gate")
