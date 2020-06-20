@@ -1,6 +1,5 @@
 # Import packages
 import os
-import argparse
 import cv2
 import numpy as np
 import sys
@@ -8,7 +7,6 @@ import time
 from threading import Thread
 import importlib.util
 import requests
-from pprint import pprint
 import mysql.connector
 import datetime
 import time
@@ -245,12 +243,14 @@ x, host = f.readline().split('=')
 x, username = f.readline().split('=')
 x, password = f.readline().split('=')
 x, database = f.readline().split('=')
+x, token = f.readline().split('=')
 password = password.rstrip()
+token = 'Token '+token
+#print (token)
 
 app = App()
 # Import TensorFlow libraries
 # If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
-# If using Coral Edge TPU, import the load_delegate library
 pkg = importlib.util.find_spec('tflite_runtime')
 if pkg:
     from tflite_runtime.interpreter import Interpreter
@@ -393,7 +393,7 @@ if(detectstart == True):
                                     'https://api.platerecognizer.com/v1/plate-reader/',
                                     data=dict(regions=regions),  # Optional
                                     files=dict(upload=fp),
-                                    headers={'Authorization': 'Token af581437289c4e9f3d6ccc38e82878638254e91c'})
+                                    headers={'Authorization': token})
                                 data = response.json()
                                 try:
                                     plate = data['results'][0]['plate'].upper()
