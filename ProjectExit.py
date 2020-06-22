@@ -60,7 +60,7 @@ def Exit(plate, x, plate_id):
             print("vehicle exit successful")
             gateControl()
         else:
-            print("No out >:(")
+            print("Unsuccesful exit")
             time.sleep(5)
     else:
         print("Parking log not found in the system")
@@ -151,7 +151,7 @@ def deductWallet(plate_id, fee):
     )
     usercheck = mycursor.fetchone()
     if not usercheck:
-        app.setMessage("Plate is not registered to any account");
+        app.setMessage("Plate Not Registered To An Account");
         print("Plate is not registered to any account")
         time.sleep(5)
         app.setPlate("")
@@ -159,6 +159,7 @@ def deductWallet(plate_id, fee):
         app.setFee("")
         app.setGate("")
         app.setMessage("")
+        return 0
         
         
     else:
@@ -166,8 +167,8 @@ def deductWallet(plate_id, fee):
         if (fee > balance):
             print("Balance : ")
             print(balance)
-            app.setMessage("User balance not enough! Please add balance to your eWallet")
-            print("User balance not enough! Please add balance to your eWallet")
+            app.setMessage("Insufficient Balance")
+            print("User balance not enough! Please reload your eWallet balance")
             usercheck = None
             time.sleep(5)
             app.setPlate("")
@@ -207,7 +208,7 @@ def gateControl():
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
 # Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
-class VideoStream:
+class VideoStream():
     """Camera object that controls video streaming from the Picamera"""
     def __init__(self,resolution=(640,480),framerate=30):
         # Initialize the PiCamera and the camera image stream
