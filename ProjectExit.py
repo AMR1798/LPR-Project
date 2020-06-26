@@ -64,7 +64,7 @@ def Exit(plate, x, plate_id):
             time.sleep(5)
     else:
         print("Parking log not found in the system")
-        app.setMessage("Plate log not found in the system")
+        app.setMessage("Parking log not found in the system")
         time.sleep(5)
         app.setPlate("")
         app.setTime("","")
@@ -167,7 +167,7 @@ def deductWallet(plate_id, fee):
         if (fee > balance):
             print("Balance : ")
             print(balance)
-            app.setMessage("Insufficient Balance")
+            app.setMessage("Insufficient Balance, Reload eWallet")
             print("User balance not enough! Please reload your eWallet balance")
             usercheck = None
             time.sleep(5)
@@ -304,7 +304,7 @@ class App(threading.Thread):
         self.feeLabel1.config(font=('helvetica', 30))
         self.canvas1.create_window(240, 350, window=self.feeLabel1)
         #Fee label
-        self.feeLabel2 = tk.Label(self.root, text='', bg='white')
+        self.feeLabel2 = tk.Label(self.root, text='RM ', bg='white')
         self.feeLabel2.config(font=('helvetica', 30))
         self.canvas1.create_window(290, 325, window=self.feeLabel2,anchor='nw')
         #Gate label
